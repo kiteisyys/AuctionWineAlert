@@ -1,56 +1,53 @@
 import re
-import requests
-from bs4 import BeautifulSoup
+from curl_cffi import requests as curl_requests
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept-Language": "en-US,en;q=0.9",
-}
-
-def search_wine_searcher(wine_name, vintage):
-    query = re.sub(r'[^\w\s]', '', wine_name).strip()
-    query = re.sub(r'\s+', '+', query)
-    url = f"https://www.wine-searcher.com/find/{query}/{vintage}/"
+def search_vivino(wine_name, vintage):
+    """Search Vivino for market prices — returns median of 750ml listings"""
+    query = re.sub(r'[^\w\s]', ' ', wine_name).strip()
+    if vintage:
+        query = f"{query} {vintage}"
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=15)
-        soup = BeautifulSoup(resp.text, 'lxml')
-
-        # try known price selectors
-        for selector in ['.average-price', '[class*="average"]', '[class*="avg-price"]', '.price-avg']:
-            tag = soup.select_one(selector)
-            if tag:
-                match = re.search(r'[\d,]+\.?\d*', tag.get_text())
-                if match:
-                    return float(match.group().replace(',', '')), 'Wine Searcher'
-
-        # fallback: grab all dollar amounts on the page and take median
-        prices = [float(p.replace(',', '')) for p in re.findall(r'\$([\d,]+(?:\.\d{2})?)', resp.text)
-                  if 5 < float(p.replace(',', '')) < 5000]
-        if prices:
-            prices.sort()
-            return prices[len(prices) // 2], 'Wine Searcher (estimated)'
-
-    except Exception as e:
-        print(f"Wine Searcher error for '{wine_name}': {e}")
-
-    return None, None
-
-def google_price_fallback(wine_name, vintage):
-    query = f"{wine_name} {vintage} wine price"
-    try:
-        resp = requests.get(
-            "https://www.google.com/search",
+        resp = curl_requests.get(
+            "https://www.vivino.com/search/wines",
             params={"q": query},
-            headers=HEADERS,
-            timeout=10
+            impersonate="chrome110",
+            timeout=15
         )
-        prices = [float(p.replace(',', '')) for p in re.findall(r'\$([\d,]+(?:\.\d{2})?)', resp.text)
-                  if 5 < float(p.replace(',', '')) < 5000]
-        if prices:
-            prices.sort()
-            return prices[len(prices) // 2], 'Google search'
+        if resp.status_code != 200:
+            return None, None
+
+        # try structured extraction: volume_ml paired with prices array
+        pairs = re.findall(
+            r'"volume_ml":(\d+)\}\},"prices":\[{"id":\d+,"merchant_id":\d+,"amount":([\d.]+)',
+            resp.text
+        )
+        prices_750 = []
+        if pairs:
+            for ml, amount in pairs:
+                amt = float(amount)
+                if not (5 < amt < 2000):
+                    continue
+                if ml == '750':
+                    prices_750.append(amt)
+                elif ml == '375':
+                    prices_750.append(amt * 2)
+
+        # fallback: grab all "amount" values in a reasonable range
+        if not prices_750:
+            all_amounts = [
+                float(a) for a in re.findall(r'"amount":([\d.]+)', resp.text)
+                if 10 < float(a) < 2000
+            ]
+            if all_amounts:
+                all_amounts.sort()
+                return all_amounts[len(all_amounts) // 2], 'Vivino (estimated)'
+            return None, None
+
+        prices_750.sort()
+        return prices_750[len(prices_750) // 2], 'Vivino'
+
     except Exception as e:
-        print(f"Google price fallback error: {e}")
+        print(f"Vivino error for '{wine_name}': {e}")
     return None, None
 
 def check_price(wine, min_discount):
@@ -59,10 +56,7 @@ def check_price(wine, min_discount):
     vintage = wine.get('vintage', '')
     bid_price = wine['price']
 
-    market_price, source = search_wine_searcher(name, vintage)
-
-    if market_price is None:
-        market_price, source = google_price_fallback(name, vintage)
+    market_price, source = search_vivino(name, vintage)
 
     if market_price is None:
         return True, None, None, 'unverified'  # no price data, notify anyway

@@ -40,12 +40,24 @@ def fetch_wines_from_url(url, category):
             break
 
         for item in items:
-            name_tag = item.select_one('a[href*="/BuyWine/Item/"]')
-            if not name_tag:
+            # there are multiple <a> tags with the same href:
+            # [0] = image link, [1] = wine name, [2] = price
+            all_links = item.select('a[href*="/BuyWine/Item/"]')
+            if not all_links:
                 continue
-            href = name_tag.get('href', '')
+
+            href = all_links[0].get('href', '')
             item_url = WINEBID_BASE + href if href.startswith('/') else href
-            name = name_tag.get_text(strip=True) or name_from_url(item_url)
+
+            # find the link whose text is the wine name (non-empty, not a price)
+            name = ''
+            for link in all_links:
+                text = link.get_text(strip=True)
+                if text and not text.startswith('$') and text.lower() not in ('bid', 'track'):
+                    name = text
+                    break
+            if not name:
+                name = name_from_url(item_url)
 
             # find price — try known classes first, fall back to regex
             price_tag = item.select_one('.price, .currentPrice, .bidPrice')
@@ -61,12 +73,12 @@ def fetch_wines_from_url(url, category):
             if price is None or price > MAX_PRICE:
                 continue
 
-            # ratings e.g. "WA 96, VN 93"
+            # ratings e.g. "WA92"
             rating_tag = item.select_one('.ratingArea, [class*="rating"]')
             ratings = rating_tag.get_text(strip=True) if rating_tag else None
 
-            # thumbnail image
-            img_tag = item.select_one('img')
+            # thumbnail from the image inside the first link
+            img_tag = all_links[0].select_one('img') if all_links else item.select_one('img')
             thumbnail = img_tag.get('src') or img_tag.get('data-src') if img_tag else None
             if thumbnail and thumbnail.startswith('/'):
                 thumbnail = WINEBID_BASE + thumbnail
@@ -88,22 +100,10 @@ def fetch_wines_from_url(url, category):
 
     return wines
 
-def fetch_chenin_blanc():
-    # WineBid has no Chenin Blanc category — fetch white wines and filter by name
-    url = f"{WINEBID_BASE}/BuyWine/Items/White-Wine/14743"
-    all_white = fetch_wines_from_url(url, "Chenin Blanc")
-    return [w for w in all_white if 'chenin' in w['name'].lower()]
-
 def fetch_all_wines():
     all_wines = []
     for category, url in WINEBID_CATEGORIES.items():
-        if url is None:
-            if category == "Chenin Blanc":
-                wines = fetch_chenin_blanc()
-            else:
-                continue
-        else:
-            wines = fetch_wines_from_url(url, category)
+        wines = fetch_wines_from_url(url, category)
         print(f"Found {len(wines)} {category} wines under ${MAX_PRICE}")
         all_wines.extend(wines)
     return all_wines

@@ -10,5 +10,5 @@ WINEBID_BASE = "https://www.winebid.com"
 WINEBID_CATEGORIES = {
     "Riesling": f"{WINEBID_BASE}/BuyWine/Items/Riesling/17763",
     "Dessert Wine": f"{WINEBID_BASE}/BuyWine/Items/Dessert-Wine/14745",
-    "Chenin Blanc": None,  # searched by keyword since no direct category URL
+    "Chenin Blanc": f"{WINEBID_BASE}/BuyWine/Items/Chenin-Blanc/26566",
 }
