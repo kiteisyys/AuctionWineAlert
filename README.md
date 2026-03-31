@@ -4,12 +4,9 @@ I used to manually check every Sunday at 7pm what good wines had become availabl
 
 AuctionWineAlert scans WineBid automatically and posts qualifying wines to your Discord server's **#wine** channel — or whenever you feel like checking with `/winecheck`.
 
-## Wine criteria
+## v1 — Built for My Personal Favorites
 
-- **Categories:** Chenin Blanc, Riesling, Dessert Wine
-- **Max price:** $50 (WineBid listing price)
-- **Deal threshold:** ≥40% discount vs Vivino market price
-- **Notifies if EITHER:** good/great/legendary vintage year OR ≥40% discount
+User settings and customization coming in v2 and beyond.
 
 ## Discord commands
 
