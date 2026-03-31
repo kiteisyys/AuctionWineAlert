@@ -2,7 +2,7 @@
 
 I used to manually check every Sunday at 7pm what good wines had become available on WineBid. Thousands of listings, one me. So I built a bot to do the work for me.
 
-AuctionWineAlert scans WineBid automatically and posts qualifying wines to your Discord server's **#wine** channel — or whenever you feel like checking with `/winecheck`.
+AuctionWineAlert scans WineBid using `/winecheck` and posts qualifying wines to your Discord channel. 
 
 ## v1 — Built for My Personal Favorites
 
